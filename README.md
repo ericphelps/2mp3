@@ -1,5 +1,7 @@
 <h1>2mp3.sh</h1>
-<br />Converts an EPUB, HTML or TXT e-book file into a set of MP3 files (Linux/Bash)
+<br />Converts an EPUB, HTML or TXT e-book file into a set of MP3 files (an audio book!)
+<br />Windows has nice voices available (at a price), but Linux has nothing (espeak, festival, flite, and pico2wave are all horrible). So to convert an e-book into an audio book, we'll use Amazon or IBM's very good voices. Amazon's "Joanna" is by far the best (and free for a year), but IBM's "Lisa" and "Michael" are also very good -- and effectively free forever if you limit yourself to about 10 books a month.
+<br />In addition to creating the MP3 files, this script also tags the files with ID3 data to make the files easier to identify and sort in your audio player.
 <br />REQUIREMENTS (will be tested by the script):
 <ul>
 <li>operon (to add cover art to the MP3) needs the Quodlibet package 
