@@ -5,6 +5,8 @@
 <li>operon (to add cover art to the MP3) needs the Quodlibet package 
 <li>html2text needs the Html2text package
 <li>pdftotext needs the Poppler-utils package
+<li>curl needs the Curl package
+<li>ffmpeg needs the Ffmpeg package
 <li>ID3 tagging needs at least one of the following ID3 tag editors:
 	<ul>
 	<li>mid3v2 needs the Python-mutagen package
