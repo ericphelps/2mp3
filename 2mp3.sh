@@ -55,29 +55,57 @@ do
 	fi
 done
 
-# Make sure there's at least one voice engine. NOTE: Last test wins!
-hasVoice=0
+# Make sure there's at least one ID3 tagger
+voiceIndex=0
+for pkg in Python-mutagen Id3v2 # Order with most desired last
+do
+	if [ $( apt-cache search "${pkg}" | grep -i -c "^${pkg} - " ) -ne 0 ]
+	then
+		voiceIndex=1
+		id3_package="${pkg}"
+	else
+		echo "${pkg} ... installed"
+	fi
+done
+if [ ${voiceIndex} -eq 0 ]
+then
+	echo "Please read the script comments to see how to "
+	read -p "install an ID3 tagger, then re-run this script."
+	exit 1
+fi 
+
+# Make sure there's at least one voice engine.
+voiceIndex=0
 # Test for Amazon Polly (assume if you have awscli installed, you set up Polly)
 if [ $( apt-cache search "Awscli" | grep -i -c "^Awscli - " ) -ne 0 ]
 then
-	hasVoice=1
-	tts_voice=${aws_tts_voice}
-	tts_engine="AWS"
 	echo "Awscli ... installed"
+	# Build 2-D array of voices: Pipe-delimited index, friendly name, voice name, engine name
+	voiceArray[$voiceIndex]="${voiceIndex}|Salli (AWS)|Salli|AWS"
+	((voiceIndex+=1))
+	voiceArray[$voiceIndex]="${voiceIndex}|Joey (AWS)|Joey|AWS"
+	((voiceIndex+=1))
+	voiceArray[$voiceIndex]="${voiceIndex}|Kendra (AWS)|Kendra|AWS"
+	((voiceIndex+=1))
+	voiceArray[$voiceIndex]="${voiceIndex}|Joanna (AWS)|Joanna|AWS"
+	((voiceIndex+=1))
 fi
 # Test for IBM/BlueMix Watson voices (assume if environment set, you have IBM)
 if [ "$ibm_tts_user" != "x" ] ; then
 	echo '$ibm_tts_user'" ... set"
 	if [ "$ibm_tts_password" != "x" ] ; then
 		echo '$ibm_tts_password'" ... set"
-		hasVoice=1
-		tts_voice=${ibm_tts_voice}
-		tts_engine="IBM"
+		voiceArray[$voiceIndex]="${voiceIndex}|Michael (IBM)|en-US_MichaelVoice|IBM"
+		((voiceIndex+=1))
+		voiceArray[$voiceIndex]="${voiceIndex}|Allison (IBM)|en-US_AllisonVoice|IBM"
+		((voiceIndex+=1))
+		voiceArray[$voiceIndex]="${voiceIndex}|Lisa (IBM)|en-US_LisaVoice|IBM"
+		((voiceIndex+=1))
 	fi
 fi
 
 # Find out if we found a voice
-if [ ${hasVoice} -eq 0 ]
+if [ ${voiceIndex} -eq 0 ]
 then
 	echo ""
 	echo "ERROR: "
@@ -85,28 +113,26 @@ then
 	read -p "install a tts voice, then re-run this script."
 	exit 1
 else
+	# Print the list of voices
+	echo ""
+	for x in "${voiceArray[@]}"; do
+		IFS="|"
+			voiceData=(${x})
+			echo "${voiceData[0]}: ${voiceData[1]}"
+		unset IFS
+	done
+	echo ""
+	read -p "Please enter the number of voice you want to use: " user_selection
+	tts_selection=${voiceArray[${user_selection}]}
+	IFS="|"
+		tts_data=(${tts_selection})
+
+		tts_voice=${tts_data[2]}
+		tts_engine=${tts_data[3]}
+	unset IFS
 	echo "Using TTS engine: " ${tts_engine}
 	echo "Using TTS voice: " ${tts_voice}
 fi
-
-# Make sure there's at least one ID3 tagger
-hasVoice=0
-for pkg in Python-mutagen Id3v2 # Order with most desired last
-do
-	if [ $( apt-cache search "${pkg}" | grep -i -c "^${pkg} - " ) -ne 0 ]
-	then
-		hasVoice=1
-		id3_package="${pkg}"
-	else
-		echo "${pkg} ... installed"
-	fi
-done
-if [ ${hasVoice} -eq 0 ]
-then
-	echo "Please read the script comments to see how to "
-	read -p "install an ID3 tagger, then re-run this script."
-	exit 1
-fi 
 
 # Get a file
 clear
@@ -189,7 +215,7 @@ case $file_ext in
 		exit 1
 esac
 
-# Try to preserve apostrophes because the next step may whack them
+# Try to preserve apostrophes because the next step will whack them
 echo "Removing smart single quotes..."
 asciitext=$( cat "${output_folder}"/"${id3_title}".text )
 asciitext="${asciitext//\’/\'}"
@@ -298,6 +324,7 @@ done
 rm -r "${temp_folder}"
 
 # Set ID3V2 information ################################################
+# (if you want to look at mp3 id3v2 info, use "ffprobe" or "id3v2 -l"
 
 # First see which program we'll use
 case $id3_package in
