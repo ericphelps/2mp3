@@ -27,19 +27,6 @@
 # 		export ibm_tts_user=abcd0123-ef45-ab01-cd67-ef23456789ab
 # 		export ibm_tts_password=A1bC2dE3fG4h
 
-# Ensure at least one voice for your TTS engine is uncommented.
-# NOTE: This only selects the voice. It does *not* select the TTS engine (AWS or IBM)!
-# The TTS engine is selected based on what's installed. See lines 58-89.
-# Amazon US English adult voices:
-aws_tts_voice=Salli
-aws_tts_voice=Joey
-aws_tts_voice=Kendra
-aws_tts_voice=Joanna
-# IBM US English voices:
-ibm_tts_voice=en-US_MichaelVoice
-ibm_tts_voice=en-US_AllisonVoice
-ibm_tts_voice=en-US_LisaVoice
-				
 echo "Checking requirements..."
 # Check the mandatory package list
 for pkg in Poppler-utils Quodlibet Html2Text Curl Ffmpeg
@@ -134,6 +121,7 @@ else
 	echo "Using TTS voice: " ${tts_voice}
 fi
 
+
 # Get a file
 clear
 echo 'Drag an ".epub", ".pdf", ".html", or ".txt" e-book '
@@ -141,10 +129,6 @@ echo 'file; drop it in this window, then press Enter.'
 read -p "" source_file
 
 # Remove the single quotes around the file name
-# ${var#*SubStr}  # will drop start of string up to first occur of `SubStr`
-# ${var##*SubStr} # will drop start of string up to last occur of `SubStr`
-# ${var%SubStr*}  # will drop end of string from last occur of `SubStr` to the end
-# ${var%%SubStr*} # will drop end of string from first occur of `SubStr` to the end
 source_file="${source_file%\'}"
 source_file="${source_file#\'}"
 
@@ -168,9 +152,9 @@ case $file_ext in
 	"epub")
 		echo "Extracting HTM/HTML and JPG/JPEG files from the EPUB..."
 		# Extract all HTML files from the EPUB into the working directory
-		unzip -o -j -d "${temp_folder}" "${source_file}" *.html *.htm
-		# Extract JPG files into the output folder (and hope one is cover art)
-		unzip -o -j -d "${output_folder}" "${source_file}" *.jpg *.jpeg
+		unzip -o -j -d "${temp_folder}" "${source_file}" *.html *.htm > /dev/null 2>&1
+		# Extract JPG files into the output folder (and hope one is useful as cover art)
+		unzip -o -j -d "${output_folder}" "${source_file}" *.jpg *.jpeg > /dev/null 2>&1
 		# The only way I've found to process files in name order is to
 		# use normal globbing to fill an array with unsorted file names, 
 		# then sort the array.
@@ -188,17 +172,17 @@ case $file_ext in
 		for ((i=0; i<${#arr[@]}; i++))
 		do
 			htmlfile="${arr[$i]}"
-			echo "Converting" "${htmlfile}"
 			# Set a long line of 1300 to stop line wrapping inside paragraphs.
-			cat "${htmlfile}" | html2text -ascii -width 1300 | grep -F -v "<?xml" >> "${output_folder}"/"${id3_title}".text
-			# More than likely, the html files were chapters, so add blank line.
+			# Remove xml version tag (which html2text leaves in)
+			cat "${htmlfile}" | html2text -width 1300 | grep --binary-files=text -F -v "<?xml" >> "${output_folder}"/"${id3_title}".text
+			# More than likely, the html files were chapters, so add a blank line.
 			echo "">> "${output_folder}"/"${id3_title}".text
 		done
 		;;
 	"html")
 		# Convert a single HTML file to TEXT
 		echo "Converting from HTML to TEXT..."
-		cat "${source_file}" | html2text -ascii -width 1300 | grep -F -v "<?xml" >> "${output_folder}"/"${id3_title}".text
+		cat "${source_file}" | html2text -width 1300 | grep -F -v "<?xml" >> "${output_folder}"/"${id3_title}".text
 		;;
 	"pdf")
 		# Convert from PDF to TEXT
@@ -215,27 +199,27 @@ case $file_ext in
 		exit 1
 esac
 
-# Try to preserve apostrophes because the next step will whack them
-echo "Removing smart single quotes..."
+# Try to preserve smart punctuation because the next step will whack it
 asciitext=$( cat "${output_folder}"/"${id3_title}".text )
+echo "WAIT: Removing smart single quotes (1 of 3)..."
 asciitext="${asciitext//\’/\'}"
+echo "WAIT: Removing smart single quotes (2 of 3)..."
 asciitext="${asciitext//\`/\'}"
+echo "WAIT: Removing smart single quotes (3 of 3)..."
 asciitext="${asciitext//\‘/\'}"
+echo "WAIT: Removing smart double quotes (1 of 2)..."
+asciitext="${asciitext//\“/\"}"
+echo "WAIT: Removing smart double quotes (2 of 2)..."
+asciitext="${asciitext//\”/\"}"
 echo "${asciitext}" > "${output_folder}/${id3_title}.text"
 
 # UTF8 breaks things! Convert to ASCII (safe to do if it's already ASCII).
 # This step will *remove* any UTF8 character it doesn't recognize. Good riddance!
-echo "Converting to ASCII..."
+echo "WAIT: Converting to ASCII..."
 cat "${output_folder}/${id3_title}.text" | iconv -c -f UTF8 -t ASCII > "${temp_folder}/${id3_title}.text"
 rm "${output_folder}/${id3_title}.text"
 mv "${temp_folder}/${id3_title}.text" "${output_folder}/${id3_title}.text"
 
-# Remove double quotes (we'll need to pass it as a string on the command line)
-echo "Removing double quotes..."
-asciitext=$( cat "${output_folder}"/"${id3_title}".text )
-asciitext="${asciitext//\"/\ }"
-echo "${asciitext}" > "${output_folder}/${id3_title}.text"
-		
 # Wait for the user to edit the file
 clear
 echo "Please use this opportunity to make just-in-time edits to:"
@@ -243,7 +227,6 @@ echo "\"${output_folder}/${id3_title}.text\""
 echo "Hint: Remove any introductory text like the table of contents and"
 echo "final text like credits and references."
 echo "DO NOT change the file name. Ensure the text file has the above name!"
-echo "Note: Text has been forced to ASCII with no quotes."
 echo
 echo 'For cover art, create or rename a file as:'
 echo "\"${output_folder}/cover.jpeg\""
@@ -262,13 +245,15 @@ for textfile in "${temp_folder}"/*.txt
 do
 	echo ""
     mp3file=$(basename "${textfile}" .txt).mp3
-    wavfile=$(basename "${textfile}" .txt).wav
+    wavfile=$(basename "${textfile}" .txt).ogg
 	text_portion=$( cat "${textfile}" )
     case $tts_engine in
 			"AWS")
 				# Use AWS Polly to create the MP3
 				echo "Using AWS to convert ""${textfile}"
-				aws polly synthesize-speech --output-format mp3 --sample-rate 16000 --voice-id "${tts_voice}" --text "${text_portion}" "${output_folder}"/"${mp3file}"
+				# Remove double quotes (we'll need to pass it as a string on the command line)
+				aws_text="${text_portion//\"/\ }"
+				aws polly synthesize-speech --output-format mp3 --sample-rate 16000 --voice-id "${tts_voice}" --text "${aws_text}" "${output_folder}"/"${mp3file}"
 				;;
 			"IBM")
 				# Use IBM Watson to create a WAV, then convert to MP3
@@ -281,7 +266,7 @@ do
 				ibm_text="${ibm_text//$'\r'/%0A}"
 				ibm_text="${ibm_text//\ /%20}"
 				ibm_text="${ibm_text//\!/%21}"
-				ibm_text="${ibm_text//\"/%22}" # I know, there aren't any quotes...
+				ibm_text="${ibm_text//\"/%22}"
 				ibm_text="${ibm_text//\#/%23}"
 				ibm_text="${ibm_text//\$/%24}"
 				ibm_text="${ibm_text//\&/%26}"
@@ -303,7 +288,7 @@ do
 				ibm_text="${ibm_text//\>/%62}"
 				# Build the IBM command line
 				curl_url="https://stream.watsonplatform.net/text-to-speech/api/v1/synthesize"
-				curl_url+="?accept=audio/wav"
+				curl_url+="?accept=audio/ogg;codecs=opus"
 				curl_url+="&voice=${tts_voice}"
 				curl_url+="&text=${ibm_text}"
 				curl -X GET -u "$ibm_tts_user":"$ibm_tts_password" --output "${output_folder}"/"${wavfile}" "${curl_url}"
