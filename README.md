@@ -1,22 +1,15 @@
 <h1>2mp3.sh</h1>
 <br />Converts an EPUB, HTML or TXT e-book file into a set of MP3 files (an audio book!)
-<br />Windows has nice voices available (at a price), but Linux has nothing (espeak, festival, flite, and pico2wave are all horrible). So to convert an e-book into an audio book, we'll use Amazon or IBM's very good voices. Amazon's "Joanna" is by far the best (and free for a year), but IBM's "Lisa" and "Michael" are also very good -- and effectively free forever if you limit yourself to about 10 books a month.
+<br />Windows has nice voices available (at a price), but Linux has nothing (espeak, festival, flite, and pico2wave are all horrible). So to convert an e-book into an audio book, we'll use Amazon or IBM's very good voices. Amazon's "Joanna" is by far the best (and free for a year), but IBM's "Lisa" and "Michael" are also very good. Cloud-based TTS is effectively free forever if you limit yourself to about 10 books a month and spread your books between different cloud TTS engines.
 <br />In addition to creating the MP3 files, this script also tags the files with ID3 data to make the files easier to identify and sort in your audio player.
 <br />REQUIREMENTS (will be tested by the script):
 <ul>
 <li>html2text needs the html2text package
-<li>pdftotext needs the pPoppler-utils package
+<li>pdftotext needs the poppler-utils package
 <li>sox needs the following packages: sox, libsox-fmt-base, libsox-fmt-mp3
 <li>curl needs the curl package
 <li>eyeD3 needs the eyed3 package
 <li>xxd needs the vim-common package
-<li>ID3 tagging needs at least one of the following ID3 tag editors:
-	<ul>
-	<li>mid3v2 needs the Python-mutagen package
-	<br /><i>The mid3v2 program creates newer (more detailed) version 2.4 tags</i>
-	<li>id3v2 needs the Id3v2 package
-	<br /><i>The id3v2 program creates older (more compatible) version 2.3 tags</i>
-	</ul>
 <li>TTS needs at least one of the following cloud voice engines:
 	<ul>
 	<li>AMAZON:
