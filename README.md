@@ -4,11 +4,12 @@
 <br />In addition to creating the MP3 files, this script also tags the files with ID3 data to make the files easier to identify and sort in your audio player.
 <br />REQUIREMENTS (will be tested by the script):
 <ul>
-<li>operon (to add cover art to the MP3) needs the Quodlibet package 
-<li>html2text needs the Html2text package
-<li>pdftotext needs the Poppler-utils package
-<li>curl needs the Curl package
-<li>ffmpeg needs the Ffmpeg package
+<li>html2text needs the html2text package
+<li>pdftotext needs the pPoppler-utils package
+<li>sox needs the following packages: sox, libsox-fmt-base, libsox-fmt-mp3
+<li>curl needs the curl package
+<li>eyeD3 needs the eyed3 package
+<li>xxd needs the vim-common package
 <li>ID3 tagging needs at least one of the following ID3 tag editors:
 	<ul>
 	<li>mid3v2 needs the Python-mutagen package
