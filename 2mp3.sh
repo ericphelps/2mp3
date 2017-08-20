@@ -116,7 +116,6 @@ read -p "Please enter the number of the voice you want to use: " user_selection
 tts_selection=${voiceArray[${user_selection}]}
 IFS="|"
 	tts_data=(${tts_selection})
-
 	tts_voice=${tts_data[2]}
 	tts_engine=${tts_data[3]}
 unset IFS
@@ -128,18 +127,56 @@ output_folder=${source_file%\/*}
 # Make a working directory so we can generate intermediate files
 temp_folder=$(mktemp -d "/tmp/2mp3-XXXXXX") || { read -p "Can't create temp folder, sorry!"; exit 1; }
 
-# Ask for author, title, and comment
+# Ask for author, title, series, comment, and publish time
 clear
 echo "Author Name:" 
 read -p "" id3_author
+
 clear
 echo "Book Title:"
 echo -e "\tNote: The title will be the file name. Avoid using "
 echo -e "\tthese special characters:  *^|#&!$@?\":'/\\<>[]{}"
 read -p "" id3_title
+
 clear
-echo "Comment / Description:" 
+echo "Album/Series Name ["${id3_title}"]:"
+read -p "" id3_album
+if [ "x"${id3_album} = "x" ]
+then
+	id3_album=${id3_title}
+fi
+
+clear
+echo "Comment / Description [none]:" 
 read -p "" id3_comment
+
+clear
+echo "Publish date [random]: "
+echo -e "\tNote: The date can be in almost any format. If you enter a "
+echo -e "\tbad format, you'll be asked to re-enter the data. If you "
+echo -e "\tenter nothing, a random date from 1970 to 2017 will be used."
+epoch_time=''
+until [ "x${epoch_time}x" != "xx" ]
+do
+	read -p "" user_time
+	if [ "${user_time}" = "" ]
+	then
+		# To help sorting tracks by date, we'll create a random start date that we'll 
+		# increment for each file. The start will be between 1970-01-01 and 2017-01-01.
+		# ... and yes, I know multiplying random numbers doesn't give you random numbers ...
+		epoch_time=$(( 86400 + (($RANDOM * $RANDOM * $RANDOM + $RANDOM + $RANDOM + $RANDOM) % 1483171200) ))
+		# Round the timestamp to the top of the hour
+		epoch_time=$(( (${epoch_time} / 3600) * 3600 ))
+		echo "Using random date: " $(date --date="@${epoch_time}" +%Y-%m-%dT%H:%M:%S)
+	else
+		epoch_time=$( date -d "${user_time}" +%s 2> /dev/null ) || epoch_time=''
+		if [ "${epoch_time}" != "" ]; then
+			echo "Using date: " $(date --date="@${epoch_time}" +%Y-%m-%dT%H:%M:%S) " (" ${epoch_time} ")"
+		else
+			echo "Couldn't convert that to a date! Please try again: "
+		fi
+	fi
+done
 
 # Handle things differently if we got EPUB, HTML, or TXT
 case $file_ext in
@@ -341,14 +378,6 @@ rm -r "${temp_folder}"
 # If you want to look at mp3 id3 info, use:
 # "eyeD3 -v" or "ffprobe" or "id3v2 -l" or "mid3v2 -l" or "operon list"
 
-# To help sorting tracks by date, we'll create a random start date that we'll 
-# increment for each file. The start will be between 1970-01-01 and 2017-01-01.
-# ... and yes, I know multiplying random numbers doesn't give you random numbers ...
-epoch_time=$(( 86400 + (($RANDOM * $RANDOM * $RANDOM + $RANDOM + $RANDOM + $RANDOM) % 1483171200) ))
-# Round the timestamp to the top of the hour
-epoch_time=$(( ($epoch_time / 3600) * 3600))
-echo "Using random start date: " $(date --date="@${epoch_time}" +%Y-%m-%dT-%H:%M:%S)
-
 # Get the number of mp3 files
 numfiles=$( ls -v -1 "${output_folder}"/*.mp3 | grep -c .mp3 )
 echo "Processing ${numfiles} files..."
@@ -377,6 +406,8 @@ do
 	eyeD3 --remove-all "${mp3file}"
 	
     # Artist
+    #  Specify conversion to 2.3. There's nothing to convert *from*, but
+    #  once we start v2.3, all the rest of the writes will honor that version.
     eyeD3 --to-v2.3 --set-text-frame=TPE1:"${id3_author}" "${mp3file}"
     eyeD3 --set-text-frame=TOPE:"${id3_author}" "${mp3file}"
     eyeD3 --set-text-frame=TEXT:"${id3_author}" "${mp3file}"
@@ -418,8 +449,8 @@ do
     eyeD3 --set-text-frame=TIT2:"${mp3title}" "${mp3file}" # (title)
     
     # Album
-    eyeD3 --set-text-frame=TOAL:"${id3_title}" "${mp3file}" # (original album)
-    eyeD3 --set-text-frame=TALB:"${id3_title}" "${mp3file}" # (album)
+    eyeD3 --set-text-frame=TOAL:"${id3_album}" "${mp3file}" # (original album)
+    eyeD3 --set-text-frame=TALB:"${id3_album}" "${mp3file}" # (album)
 
     # Genre
     eyeD3 -G "Speech" "${mp3file}" #TCON (101), which is "Speech"
@@ -429,8 +460,8 @@ do
 	mp3num=$((10#${mp3num})) # Forces "0012" to be decimal 12 (not octal's 10!)
     # Our track number is zero-based, but the max is one-based. Add one to the track!
     mp3num=$(( ${mp3num} + 1 ))
+    eyeD3 -N "${numfiles}" "${mp3file}" # Number of tracks
     eyeD3 -n "${mp3num}" "${mp3file}" # Current track
-    eyeD3 -N "${mp3num}" "${mp3file}" # Number of tracks
 
     # Time stamps are different between id3v2.3 and id3v2.4
 	# Our preferred time coding method is id3v2.3 where everything is 4-digit numbers
@@ -446,6 +477,7 @@ do
 	sleep 1 # Give it time to write to the disk (we have to read it on the next step)
 	# Convert the MP3 to hex so we can do easy text replacements
 	INPUT_2MP3=$( xxd -p "${mp3file}" )
+	INPUT_2MP3=$( echo "${INPUT_2MP3}" | tr -d [:space:] )
 	# Get our search strings figured out
 	TAG_SUFFIX_2MP3="00000005000000"$( echo -n $(date --date="@${epoch_time}" +%m%d)|xxd -p )
 	TYER_2MP3=$( echo -n TYER|xxd -p )$TAG_SUFFIX_2MP3 # TYER is the bad string
@@ -453,11 +485,12 @@ do
 	# Now replace the hex file's TYER tag with the TDAT tag we want
 	OUTPUT_2MP3=${INPUT_2MP3//$TYER_2MP3/$TDAT_2MP3}
 	# Did the substitution work?
-	if [ $OUTPUT_2MP3 = $INPUT_2MP3 ]
-		then
-		echo "TDAT tag was not recovered :("
+	if [ "${OUTPUT_2MP3}" = "${INPUT_2MP3}" ]
+	then
+		echo "TDAT tag was not recovered - old:${TYER_2MP3}, new:${TDAT_2MP3}"
+		read -p ""
 	else
-		echo "TDAT tag was recovered :)"	
+		echo "TDAT tag was recovered"	
 		# Convert the edited text back into a binary MP3
 		echo $OUTPUT_2MP3 | xxd -r -p > "${mp3file}"
 	fi
@@ -466,5 +499,5 @@ do
 	epoch_time=$(( $epoch_time + 60 ))
     
     # Make the file timestamp match the ID3 timestamp due to Android limitation
-    #touch -d "$(date --date=@${epoch_time} +'%m/%d %Y %H:%M')" "${mp3file}"
+    # touch -d "$(date --date=@${epoch_time} +'%m/%d %Y %H:%M')" "${mp3file}"
 done
