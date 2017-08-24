@@ -186,29 +186,17 @@ case $file_ext in
 		unzip -o -j -d "${temp_folder}" "${source_file}" *.html *.htm *.xhtml > /dev/null 2>&1
 		# Extract JPG files into the output folder (and hope one is useful as cover art)
 		unzip -o -j -d "${output_folder}" "${source_file}" *.jpg *.jpeg > /dev/null 2>&1
-		# The only way I've found to process files in name order is to
-		# use normal globbing to fill an array with unsorted file names, 
-		# then sort the array.
-		declare -a arr
-		i=0
-		for htmlfile in "${temp_folder}"/*.htm* "${temp_folder}"/*.xhtm*
+		# Process html files in name (version number) order		
+		IFS=$'\n'
+		for htmlfile in $(ls -1 -v "${temp_folder}"/*.htm* "${temp_folder}"/*.xhtm*)
 		do
-			arr[${i}]=$htmlfile
-			i=$(( $i + 1 ))
-		done
-		# Sort the aray by name (by "version number") so they are in chapter order
-		IFS=$'\n' arr=($(sort -V <<<"${arr[*]}"))
-		unset IFS
-		# Process the array elements
-		for ((i=0; i<${#arr[@]}; i++))
-		do
-			htmlfile="${arr[$i]}"
 			# Set a long line of 1300 to stop line wrapping inside paragraphs.
 			# Remove xml version tag (which html2text leaves in)
 			cat "${htmlfile}" | html2text -width 1300 | grep --binary-files=text -F -v "<?xml" >> "${output_folder}"/"${id3_title}".text
 			# More than likely, the html files were chapters, so add a blank line.
 			echo "">> "${output_folder}"/"${id3_title}".text
 		done
+		unset IFS
 		;;
 	"html")
 		# Convert a single HTML file to TEXT
@@ -382,23 +370,10 @@ rm -r "${temp_folder}"
 numfiles=$( ls -v -1 "${output_folder}"/*.mp3 | grep -c .mp3 )
 echo "Processing ${numfiles} files..."
 
-# Once again, using a sorted array method :( to do things in order 
-# Create an array
-declare -a arr
-# Use normal globbing to fill the array with unsorted file names
-i=0
-for mp3file in "${output_folder}"/*.mp3
+# Process MP3 files in order for track number and published date ordering
+IFS=$'\n'
+for mp3file in $(ls -1 -v "${output_folder}"/*.mp3)
 do
-	arr[${i}]=$mp3file
-	i=$(( $i + 1 ))
-done
-# Sort the aray by name (by "version number") so they are in track order
-IFS=$'\n' arr=($(sort -V <<<"${arr[*]}"))
-unset IFS
-# Iterate through the array of MP3 names, setting the ID3v2 data
-for ((i=0; i<${#arr[@]}; i++))
-do
-	mp3file="${arr[$i]}"
 	# Status!
 	echo "$mp3file"
 	
@@ -425,7 +400,7 @@ do
         eyeD3 --add-image="${output_folder}"/cover.jpeg:FRONT_COVER:"Cover art" "${mp3file}"
     fi
 	
-    # Encoded by (supposed to be a person, but I'll use the program).
+    # Encoded by (supposed to be a person, but I'll use program details).
     # The mixed quotes are too confusing, so append them separately.
     encoded_by="Script: '"
     encoded_by+=$( basename "$0" )
@@ -495,9 +470,10 @@ do
 		echo $OUTPUT_2MP3 | xxd -r -p > "${mp3file}"
 	fi
 	
+    # Make the file timestamp match the ID3 timestamp due to Android limitation
+    touch -d "$(date --date=@${epoch_time} +'%m/%d %Y %H:%M')" "${mp3file}"
+    
     # Time stamps will increment one minute (60 seconds) for each track
 	epoch_time=$(( $epoch_time + 60 ))
-    
-    # Make the file timestamp match the ID3 timestamp due to Android limitation
-    # touch -d "$(date --date=@${epoch_time} +'%m/%d %Y %H:%M')" "${mp3file}"
 done
+unset IFS
