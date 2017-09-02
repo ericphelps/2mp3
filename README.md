@@ -1,7 +1,7 @@
 <h1>2mp3.sh</h1>
 <br />Converts an EPUB, HTML, PDF, or TXT e-book file into a set of MP3 files (an audio book!)
 <br />Windows has nice voices available (at a price), but Linux has nothing (espeak, festival, flite, and pico2wave are all horrible). So to convert an e-book into an audio book, we'll use Amazon or IBM's very good voices. Amazon's "Joanna" is by far the best (and free for a year), but IBM's "Lisa" and "Michael" are also very good. Cloud-based TTS is effectively free forever if you limit yourself to about 10 books a month and spread your books between different cloud TTS engines.
-<br />In addition to creating the MP3 files, this script also tags the files with ID3 data to make the files easier to identify and sort in your audio player.
+<br />In addition to creating the MP3 files, this script also tags the files with ID3 data to make the files easier to identify and sort in your audio player. If your player can't read ID3 data but instead reads RSS data during the import process, we've got that covered too: The script can create an RSS file for you.
 <br />REQUIREMENTS (will be tested by the script):
 <ul>
 <li>html2text needs the html2text package
