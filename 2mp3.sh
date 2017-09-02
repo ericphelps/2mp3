@@ -22,6 +22,8 @@
 # 		Add the IBM credentials to the environment e.g., by editing "~/.profile" to include (but using real creds!):
 # 		export ibm_tts_user=abcd0123-ef45-ab01-cd67-ef23456789ab
 # 		export ibm_tts_password=A1bC2dE3fG4h
+set -o nounset
+set -o errexit
 
 echo "Requirements Check:"
 # Check the mandatory package list
@@ -119,8 +121,6 @@ IFS="|"
 	tts_voice=${tts_data[2]}
 	tts_engine=${tts_data[3]}
 unset IFS
-echo "Using TTS engine: " ${tts_engine}
-echo "Using TTS voice: " ${tts_voice}
 
 # The output folder (for .jpeg, .text and .mp3 files) will be the source folder
 output_folder=${source_file%\/*}
@@ -139,7 +139,7 @@ echo -e "\tthese special characters:  *^|#&!$@?\":'/\\<>[]{}"
 read -p "" id3_title
 
 clear
-echo "Album/Series Name ["${id3_title}"]:"
+echo "Series Name ["${id3_title}"]:"
 read -p "" id3_album
 if [ "x"${id3_album} = "x" ]
 then
@@ -149,6 +149,12 @@ fi
 clear
 echo "Comment / Description [none]:" 
 read -p "" id3_comment
+
+clear
+echo "RSS file name [none]:" 
+echo -e "\tIf you want an RSS file to be generated, enter the "
+echo -e "\tname (e.g., index.rss). For no file, just enter nothing."
+read -p "" rss_name
 
 clear
 echo "Publish date [random]: "
@@ -197,6 +203,8 @@ case $file_ext in
 			echo "">> "${output_folder}"/"${id3_title}".text
 		done
 		unset IFS
+		# Delete all the temporary files we left hanging around...
+		rm "${temp_folder}"/*.* > /dev/null
 		;;
 	"html")
 		# Convert a single HTML file to TEXT
@@ -252,9 +260,6 @@ echo 'For cover art, create or rename a file as:'
 echo "\"${output_folder}/cover.jpeg\""
 echo
 read -p "Save all your changes, then press any key when ready..."
-
-# Delete all the temporary files we left hanging around...
-rm "${temp_folder}"/*.* > /dev/null
 
 # Split text into <1400 bytes (1500 is Amazon Polly max. 5000 is IBM Watson max, but that's *after* URL-encoding.)
 # The "split" function will add a 4-digit suffix
@@ -362,13 +367,35 @@ done
 # At this point, we're done with the temporary folder
 rm -r "${temp_folder}"
 
-# Set ID3 information ##################################################
+# Set ID3 and RSS information ##########################################
 # If you want to look at mp3 id3 info, use:
 # "eyeD3 -v" or "ffprobe" or "id3v2 -l" or "mid3v2 -l" or "operon list"
 
 # Get the number of mp3 files
 numfiles=$( ls -v -1 "${output_folder}"/*.mp3 | grep -c .mp3 )
 echo "Processing ${numfiles} files..."
+
+# Get text we'll use for RSS "generator"
+# The mixed quotes are too confusing, so append them separately.
+encoded_by='Script: '
+encoded_by+=$( basename "$0" )$'\r\n'
+encoded_by+="TTS_Engine: "
+encoded_by+="${tts_engine}"$'\r\n'
+encoded_by+="TTS_Voice: "
+encoded_by+="${tts_voice}"$'\r\n'
+encoded_by+="Text_Source: "
+encoded_by+=$( basename "${source_file}" )
+
+# Build the RSS header
+rss=$'<?xml version="1.0" encoding="UTF-8" ?>\r\n'
+rss+=$'<rss version="2.0">\r\n'
+rss+=$'<channel>\r\n'
+rss+='  <link>'"./"$'</link>\r\n'
+rss+='  <title>'"${id3_album}"$'</title>\r\n'
+rss+=$'  <generator>\r\n'"${encoded_by}"$'\r\n  </generator>\r\n'
+rss+='  <description>'"${id3_comment}"$'</description>\r\n'
+rss+='  <lastBuildDate>'$(date -R)$'</lastBuildDate>\r\n'
+rss+='  <pubDate>'$(date --date="@${epoch_time}" -R)$'</pubDate>\r\n'
 
 # Process MP3 files in order for track number and published date ordering
 IFS=$'\n'
@@ -400,22 +427,6 @@ do
         eyeD3 --add-image="${output_folder}"/cover.jpeg:FRONT_COVER:"Cover art" "${mp3file}"
     fi
 	
-    # Encoded by (supposed to be a person, but I'll use program details).
-    # The mixed quotes are too confusing, so append them separately.
-    encoded_by="Script: '"
-    encoded_by+=$( basename "$0" )
-    encoded_by+="'"
-    encoded_by+=" TTS Engine: '"
-    encoded_by+="${tts_engine}"
-    encoded_by+="'"
-    encoded_by+=" TTS Voice: '"
-    encoded_by+="${tts_voice}"
-    encoded_by+="'"
-    encoded_by+=" Text Source: '"
-    encoded_by+=$( basename "${source_file}" )
-    encoded_by+="'"
-    eyeD3 --set-text-frame=TENC:"${encoded_by}" "${mp3file}"
-
     # Title
     mp3num=${mp3file##*-} # for file name like "foo bar-0012.mp3", returns " 0012.mp3"
 	mp3num=${mp3file##* } # for file name like " 0012.mp3", returns "0012.mp3"
@@ -473,7 +484,26 @@ do
     # Make the file timestamp match the ID3 timestamp due to Android limitation
     touch -d "$(date --date=@${epoch_time} +'%m/%d %Y %H:%M')" "${mp3file}"
     
+	# CREATE RSS FILE ENTRY FOR INDIVIDUAL MP3 #########################
+	rss+=$'  <item>\r\n'
+	rss+='    <title>'"${mp3title}"$'</title>\r\n'
+	mp3_basename=$(basename "$mp3file")
+	rss+='    <link>./'"${mp3_basename//\ /%20}"$'</link>\r\n'
+	rss+='    <description>'"${id3_comment}"$'</description>\r\n'
+	rss+='    <pubDate>'$(date --date="@${epoch_time}" -R)$'</pubDate>\r\n'
+	rss+=$'  </item>\r\n'
+	
     # Time stamps will increment one minute (60 seconds) for each track
 	epoch_time=$(( $epoch_time + 60 ))
 done
 unset IFS
+
+# Finish RSS
+rss+=$'</channel>\r\n'
+rss+=$'</rss>'
+
+# Write the RSS
+if [ "$rss_name" != "" ] ; then
+	echo "${rss}">"${output_folder}"/"$rss_name"
+fi
+
