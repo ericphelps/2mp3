@@ -1,5 +1,4 @@
-#!/bin/bash +e
-# (We need the +e in order to continue working on failures)
+#!/bin/bash
 
 # Converts an EPUB, HTML or TXT e-book file into a set of MP3 files.
 
@@ -23,8 +22,6 @@
 # 		Add the IBM credentials to the environment e.g., by editing "~/.profile" to include (but using real creds!):
 # 		export ibm_tts_user=abcd0123-ef45-ab01-cd67-ef23456789ab
 # 		export ibm_tts_password=A1bC2dE3fG4h
-set -o nounset
-set -o errexit
 
 echo "Requirements Check:"
 # Check the mandatory package list
