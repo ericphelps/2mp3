@@ -1,4 +1,5 @@
-#!/bin/bash
+#!/bin/bash +e
+# (We need the +e in order to continue working on failures)
 
 # Converts an EPUB, HTML or TXT e-book file into a set of MP3 files.
 
